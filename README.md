@@ -11,11 +11,7 @@ Keep your content private from wandering eyes while you work.</p>
 <p align="center"><strong>Version 1.0</strong> · macOS 13 (Ventura) or later · Apple Silicon & Intel</p>
 
 <p align="center">
-  <a href="https://github.com/madebysan/peek/blob/main/assets/peek-demo.mp4">
-    <img src="assets/peek-demo.gif" width="600" alt="Peek demo">
-  </a>
-  <br>
-  <sub>Click to view in higher resolution</sub>
+  <img src="assets/peek-demo.gif" width="600" alt="Peek demo">
 </p>
 
 ## Features
