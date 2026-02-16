@@ -27,7 +27,16 @@ cp "AppIcon.icns" "$RESOURCES/AppIcon.icns"
 
 # --- Code sign ---
 echo "Signing app..."
-codesign --force --deep --sign "Developer ID Application" "$APP_BUNDLE"
+codesign --force --deep --options runtime --sign "Developer ID Application" "$APP_BUNDLE"
+
+# --- Notarize ---
+echo "Submitting for notarization..."
+ditto -c -k --keepParent "$APP_BUNDLE" "$APP_NAME.zip"
+xcrun notarytool submit "$APP_NAME.zip" --keychain-profile "notarytool-profile" --wait
+rm "$APP_NAME.zip"
+
+echo "Stapling notarization ticket..."
+xcrun stapler staple "$APP_BUNDLE"
 
 # --- Create DMG ---
 echo "Packaging DMG..."
@@ -48,9 +57,13 @@ hdiutil create \
     -format UDZO \
     "$DMG_NAME"
 
+# Sign and notarize the DMG too
+codesign --force --sign "Developer ID Application" "$DMG_NAME"
+xcrun notarytool submit "$DMG_NAME" --keychain-profile "notarytool-profile" --wait
+xcrun stapler staple "$DMG_NAME"
+
 # Clean up staging
 rm -rf "$DMG_STAGING"
 
 echo ""
-echo "Done! Created $DMG_NAME"
-echo "To install: open the DMG and drag Peek to Applications"
+echo "Done! Created $DMG_NAME (signed + notarized)"
