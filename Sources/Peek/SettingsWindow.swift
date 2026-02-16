@@ -1,4 +1,5 @@
 import Cocoa
+import ServiceManagement
 
 /// Settings window with circle size slider and overlay style picker.
 class SettingsWindow: NSWindow {
@@ -7,12 +8,14 @@ class SettingsWindow: NSWindow {
     private var sizeSlider: NSSlider!
     private var sizeValueLabel: NSTextField!
     private var styleSegment: NSSegmentedControl!
+    private var edgeSegment: NSSegmentedControl!
+    private var loginCheckbox: NSButton!
 
     init(appDelegate: AppDelegate) {
         self.appDelegate = appDelegate
 
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 220),
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 386),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -27,10 +30,10 @@ class SettingsWindow: NSWindow {
     }
 
     private func setupUI() {
-        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 220))
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 386))
 
         let padding: CGFloat = 20
-        var y: CGFloat = 176
+        var y: CGFloat = 342
 
         // --- Overlay Style ---
         let styleLabel = NSTextField(labelWithString: "Overlay Style")
@@ -43,6 +46,19 @@ class SettingsWindow: NSWindow {
         styleSegment.frame = NSRect(x: padding, y: y, width: 280, height: 28)
         styleSegment.segmentStyle = .rounded
         contentView.addSubview(styleSegment)
+
+        // --- Edge Transition ---
+        y -= 40
+        let edgeLabel = NSTextField(labelWithString: "Edge Transition")
+        edgeLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        edgeLabel.frame = NSRect(x: padding, y: y, width: 280, height: 18)
+        contentView.addSubview(edgeLabel)
+
+        y -= 32
+        edgeSegment = NSSegmentedControl(labels: ["Soft", "Hard", "Wide", "Spotlight", "Stepped"], trackingMode: .selectOne, target: self, action: #selector(edgeChanged))
+        edgeSegment.frame = NSRect(x: padding, y: y, width: 280, height: 28)
+        edgeSegment.segmentStyle = .rounded
+        contentView.addSubview(edgeSegment)
 
         // --- Circle Size ---
         y -= 40
@@ -79,6 +95,26 @@ class SettingsWindow: NSWindow {
         largeLabel.frame = NSRect(x: 240, y: y, width: 60, height: 14)
         contentView.addSubview(largeLabel)
 
+        // --- Keyboard Shortcut ---
+        y -= 36
+        let shortcutLabel = NSTextField(labelWithString: "Keyboard Shortcut")
+        shortcutLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        shortcutLabel.frame = NSRect(x: padding, y: y, width: 180, height: 18)
+        contentView.addSubview(shortcutLabel)
+
+        let shortcutValue = NSTextField(labelWithString: "\u{2325}\u{2318}P")
+        shortcutValue.font = .systemFont(ofSize: 13)
+        shortcutValue.textColor = .secondaryLabelColor
+        shortcutValue.alignment = .right
+        shortcutValue.frame = NSRect(x: 200, y: y, width: 100, height: 18)
+        contentView.addSubview(shortcutValue)
+
+        // --- Launch at Login ---
+        y -= 30
+        loginCheckbox = NSButton(checkboxWithTitle: "Launch at Login", target: self, action: #selector(loginToggled))
+        loginCheckbox.frame = NSRect(x: padding, y: y, width: 280, height: 18)
+        contentView.addSubview(loginCheckbox)
+
         self.contentView = contentView
     }
 
@@ -87,7 +123,12 @@ class SettingsWindow: NSWindow {
         guard let app = appDelegate else { return }
         sizeSlider.doubleValue = Double(app.circleRadius)
         styleSegment.selectedSegment = app.overlayStyle.rawValue
+        edgeSegment.selectedSegment = app.edgeTransition.rawValue
         updateSizeLabel()
+
+        // Sync launch at login checkbox from system state
+        let status = SMAppService.mainApp.status
+        loginCheckbox.state = (status == .enabled) ? .on : .off
     }
 
     @objc private func styleChanged() {
@@ -95,10 +136,30 @@ class SettingsWindow: NSWindow {
         appDelegate?.overlayStyle = newStyle
     }
 
+    @objc private func edgeChanged() {
+        guard let newEdge = EdgeTransition(rawValue: edgeSegment.selectedSegment) else { return }
+        appDelegate?.edgeTransition = newEdge
+    }
+
     @objc private func sizeChanged() {
         let radius = CGFloat(sizeSlider.doubleValue)
         appDelegate?.circleRadius = radius
         updateSizeLabel()
+    }
+
+    @objc private func loginToggled() {
+        do {
+            if loginCheckbox.state == .on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            print("Peek: Launch at Login failed — \(error.localizedDescription)")
+            // Revert checkbox to match actual state
+            let status = SMAppService.mainApp.status
+            loginCheckbox.state = (status == .enabled) ? .on : .off
+        }
     }
 
     private func updateSizeLabel() {

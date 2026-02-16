@@ -23,6 +23,11 @@ mkdir -p "$RESOURCES"
 
 cp "$BUILD_DIR/$APP_NAME" "$MACOS/$APP_NAME"
 cp "Sources/Peek/Info.plist" "$CONTENTS/Info.plist"
+cp "AppIcon.icns" "$RESOURCES/AppIcon.icns"
+
+# --- Code sign ---
+echo "Signing app..."
+codesign --force --deep --sign "Developer ID Application" "$APP_BUNDLE"
 
 # --- Create DMG ---
 echo "Packaging DMG..."
