@@ -1,11 +1,20 @@
 import Cocoa
 import QuartzCore
 
-/// Overlay styles for the privacy screen
+/// Overlay styles for the privacy screen (controls the fill appearance)
 enum OverlayStyle: Int {
     case lightBlur = 0   // Frosted glass — shapes/colors faintly visible
     case darkBlur = 1    // Dark frosted glass + dimming (default)
     case blackout = 2    // Solid black — nothing visible outside the circle
+}
+
+/// Edge transition styles (controls how the clear circle fades into the overlay)
+enum EdgeTransition: Int {
+    case soft = 0       // Smooth 60px feather (original)
+    case hard = 1       // Sharp cutoff, no feathering
+    case wide = 2       // Very gradual 150px fade
+    case spotlight = 3  // Tight 30px aggressive falloff, like a flashlight
+    case stepped = 4    // Visible discrete bands with clear jumps
 }
 
 /// The main overlay view: a fullscreen blur/tint with a circular reveal hole following the mouse.
@@ -22,9 +31,14 @@ class OverlayView: NSView {
         didSet { updateMaskPaths() }
     }
 
-    /// Visual style of the overlay
+    /// Visual style of the overlay (fill appearance)
     var style: OverlayStyle {
         didSet { applyStyle() }
+    }
+
+    /// Edge transition style (how the circle fades into the overlay)
+    var edgeTransition: EdgeTransition {
+        didSet { rebuildRingLayers() }
     }
 
     // Subviews
@@ -43,22 +57,63 @@ class OverlayView: NSView {
         let opacity: Float
     }
 
-    private let rings: [Ring] = [
-        Ring(radiusOffset: 60, opacity: 1.0),    // Base: full coverage beyond outer edge
-        Ring(radiusOffset: 45, opacity: 0.50),   // Outer fade
-        Ring(radiusOffset: 30, opacity: 0.30),   // Mid fade
-        Ring(radiusOffset: 15, opacity: 0.20),   // Inner fade
-        Ring(radiusOffset: 0,  opacity: 0.10),   // Faintest ring at circle edge
-    ]
+    /// Returns the ring configuration for a given edge transition
+    private static func rings(for transition: EdgeTransition) -> [Ring] {
+        switch transition {
+        case .soft:
+            // Original: smooth 60px feather
+            return [
+                Ring(radiusOffset: 60, opacity: 1.0),
+                Ring(radiusOffset: 45, opacity: 0.50),
+                Ring(radiusOffset: 30, opacity: 0.30),
+                Ring(radiusOffset: 15, opacity: 0.20),
+                Ring(radiusOffset: 0,  opacity: 0.10),
+            ]
+        case .hard:
+            // Sharp cutoff — single ring, no feathering
+            return [
+                Ring(radiusOffset: 0, opacity: 1.0),
+            ]
+        case .wide:
+            // Very gradual 150px fade
+            return [
+                Ring(radiusOffset: 150, opacity: 1.0),
+                Ring(radiusOffset: 125, opacity: 0.35),
+                Ring(radiusOffset: 100, opacity: 0.20),
+                Ring(radiusOffset: 75,  opacity: 0.12),
+                Ring(radiusOffset: 50,  opacity: 0.08),
+                Ring(radiusOffset: 25,  opacity: 0.05),
+                Ring(radiusOffset: 0,   opacity: 0.03),
+            ]
+        case .spotlight:
+            // Tight 30px aggressive falloff — like a flashlight cone
+            return [
+                Ring(radiusOffset: 30, opacity: 1.0),
+                Ring(radiusOffset: 24, opacity: 0.60),
+                Ring(radiusOffset: 16, opacity: 0.40),
+                Ring(radiusOffset: 8,  opacity: 0.25),
+                Ring(radiusOffset: 0,  opacity: 0.15),
+            ]
+        case .stepped:
+            // Visible discrete bands with clear opacity jumps (25px each)
+            return [
+                Ring(radiusOffset: 75, opacity: 1.0),
+                Ring(radiusOffset: 50, opacity: 0.35),
+                Ring(radiusOffset: 25, opacity: 0.25),
+                Ring(radiusOffset: 0,  opacity: 0.15),
+            ]
+        }
+    }
 
     // Mouse state
     private var lastMouseX: CGFloat = 0
     private var lastMouseY: CGFloat = 0
     private var mouseVisible = false
 
-    init(frame: NSRect, circleRadius: CGFloat, style: OverlayStyle) {
+    init(frame: NSRect, circleRadius: CGFloat, style: OverlayStyle, edgeTransition: EdgeTransition) {
         self.circleRadius = circleRadius
         self.style = style
+        self.edgeTransition = edgeTransition
         super.init(frame: frame)
         setup()
     }
@@ -66,6 +121,7 @@ class OverlayView: NSView {
     required init?(coder: NSCoder) {
         self.circleRadius = 150
         self.style = .darkBlur
+        self.edgeTransition = .soft
         super.init(coder: coder)
         setup()
     }
@@ -86,16 +142,8 @@ class OverlayView: NSView {
         tintView.wantsLayer = true
         addSubview(tintView)
 
-        // Create the ring layers (bottom to top)
-        for ring in rings {
-            let shapeLayer = CAShapeLayer()
-            shapeLayer.fillRule = .evenOdd
-            shapeLayer.fillColor = NSColor.black.cgColor
-            shapeLayer.opacity = ring.opacity
-            maskBase.addSublayer(shapeLayer)
-            ringLayers.append(shapeLayer)
-        }
-
+        // Build ring layers for the current edge transition
+        rebuildRingLayers()
         applyStyle()
     }
 
@@ -130,6 +178,32 @@ class OverlayView: NSView {
         updateMaskPaths()
     }
 
+    /// Rebuilds the mask ring layers for the current edge transition.
+    /// Called when edgeTransition changes or during initial setup.
+    private func rebuildRingLayers() {
+        // Remove existing ring layers
+        for layer in ringLayers {
+            layer.removeFromSuperlayer()
+        }
+        ringLayers.removeAll()
+
+        // Create new ring layers for the current transition
+        let rings = OverlayView.rings(for: edgeTransition)
+        for ring in rings {
+            let shapeLayer = CAShapeLayer()
+            shapeLayer.fillRule = .evenOdd
+            shapeLayer.fillColor = NSColor.black.cgColor
+            shapeLayer.opacity = ring.opacity
+            if let layerBounds = self.layer?.bounds {
+                shapeLayer.frame = layerBounds
+            }
+            maskBase.addSublayer(shapeLayer)
+            ringLayers.append(shapeLayer)
+        }
+
+        updateMaskPaths()
+    }
+
     /// Move the clear circle to follow the mouse.
     func updateMousePosition(x: CGFloat, y: CGFloat, visible: Bool) {
         lastMouseX = x
@@ -140,15 +214,18 @@ class OverlayView: NSView {
 
     /// Updates all ring paths — the only per-frame work.
     private func updateMaskPaths() {
+        let currentRings = OverlayView.rings(for: edgeTransition)
+        guard ringLayers.count == currentRings.count else { return }
+
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
-        for (i, ring) in rings.enumerated() {
+        for (i, ring) in currentRings.enumerated() {
             let r = circleRadius + ring.radiusOffset
             let path = CGMutablePath()
 
             // Oversized rect so edges extend beyond screen
-            path.addRect(bounds.insetBy(dx: -100, dy: -100))
+            path.addRect(bounds.insetBy(dx: -200, dy: -200))
 
             // Circle cutout (even-odd makes this a hole)
             if mouseVisible {
