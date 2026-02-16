@@ -1,4 +1,5 @@
 import Cocoa
+import Carbon
 
 class AppDelegate: NSObject, NSApplicationDelegate {
 
@@ -21,10 +22,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Settings window (single instance, reused)
     private var settingsWindow: SettingsWindow?
 
+    // Global hotkey reference (⌥⌘P)
+    private var hotKeyRef: EventHotKeyRef?
+
     // User preferences
     private let defaults = UserDefaults.standard
     private let circleRadiusKey = "circleRadius"
     private let overlayStyleKey = "overlayStyle"
+    private let edgeTransitionKey = "edgeTransition"
 
     // MARK: - Public properties for Settings UI
 
@@ -56,6 +61,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Current edge transition. Persisted in UserDefaults.
+    var edgeTransition: EdgeTransition {
+        get {
+            let stored = defaults.integer(forKey: edgeTransitionKey)
+            return EdgeTransition(rawValue: stored) ?? .soft
+        }
+        set {
+            defaults.set(newValue.rawValue, forKey: edgeTransitionKey)
+            for window in overlayWindows {
+                (window.contentView as? OverlayView)?.edgeTransition = newValue
+            }
+        }
+    }
+
     var isOverlayActive: Bool {
         return isActive
     }
@@ -83,6 +102,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+
+        // Register global hotkey ⌥⌘P
+        registerHotKey()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        unregisterHotKey()
     }
 
     // MARK: - Menu
@@ -90,8 +116,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() {
         statusMenu.removeAllItems()
 
-        let toggleItem = NSMenuItem(title: "Toggle Peek", action: #selector(toggleFromMenu), keyEquivalent: "")
+        let toggleItem = NSMenuItem(title: "Toggle Peek", action: #selector(toggleFromMenu), keyEquivalent: "p")
         toggleItem.target = self
+        toggleItem.keyEquivalentModifierMask = [.option, .command]
         statusMenu.addItem(toggleItem)
 
         statusMenu.addItem(.separator())
@@ -205,9 +232,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let style = overlayStyle
         let radius = circleRadius
+        let edge = edgeTransition
 
         for screen in NSScreen.screens {
-            let window = OverlayWindow(screen: screen, circleRadius: radius, style: style)
+            let window = OverlayWindow(screen: screen, circleRadius: radius, style: style, edgeTransition: edge)
             window.orderFrontRegardless()
             overlayWindows.append(window)
         }
@@ -273,4 +301,62 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             overlayView?.updateMousePosition(x: localX, y: localY, visible: isOnThisScreen)
         }
     }
+
+    // MARK: - Global hotkey (⌥⌘P)
+
+    private func registerHotKey() {
+        // Unique ID for this hotkey
+        let hotKeyID = EventHotKeyID(signature: OSType(0x5065656B), // "Peek" in ASCII
+                                      id: 1)
+
+        // Carbon modifier flags: optionKey = 0x0800, cmdKey = 0x0100
+        // Key code 0x23 = "P"
+        let status = RegisterEventHotKey(
+            UInt32(kVK_ANSI_P),
+            UInt32(optionKey | cmdKey),
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+
+        if status != noErr {
+            print("Peek: Failed to register hotkey ⌥⌘P (error \(status))")
+            return
+        }
+
+        // Install a Carbon event handler that fires when the hotkey is pressed
+        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                      eventKind: UInt32(kEventHotKeyPressed))
+
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            hotKeyCallback,
+            1,
+            &eventType,
+            UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+            nil
+        )
+    }
+
+    private func unregisterHotKey() {
+        if let ref = hotKeyRef {
+            UnregisterEventHotKey(ref)
+            hotKeyRef = nil
+        }
+    }
+}
+
+// C-style callback for the Carbon hotkey event — calls toggle() on the AppDelegate
+private func hotKeyCallback(
+    nextHandler: EventHandlerCallRef?,
+    event: EventRef?,
+    userData: UnsafeMutableRawPointer?
+) -> OSStatus {
+    guard let userData = userData else { return OSStatus(eventNotHandledErr) }
+    let appDelegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
+    DispatchQueue.main.async {
+        appDelegate.toggle()
+    }
+    return noErr
 }
