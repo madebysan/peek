@@ -1,10 +1,20 @@
-# Peek
+<p align="center">
+  <img src="assets/app-icon.png" width="128" height="128" alt="Peek app icon">
+</p>
 
-A digital privacy screen for macOS.
+<h1 align="center">Peek</h1>
 
-Peek blurs your entire screen with a clear circle that follows your mouse cursor. Keep your content private from wandering eyes while you work.
+<p align="center">A digital privacy screen for macOS.<br>
+Blurs your entire screen with a clear circle that follows your mouse cursor.<br>
+Keep your content private from wandering eyes while you work.</p>
 
-**Version 1.0** · macOS 13 (Ventura) or later · Apple Silicon & Intel
+<p align="center"><strong>Version 1.0</strong> · macOS 13 (Ventura) or later · Apple Silicon & Intel</p>
+
+<p align="center">
+  <video src="assets/peek-demo.mp4" width="600" autoplay loop muted>
+    Your browser does not support the video tag.
+  </video>
+</p>
 
 ## Features
 
