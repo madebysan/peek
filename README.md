@@ -41,7 +41,7 @@ Keep your content private from wandering eyes while you work.</p>
 
 ## Installation
 
-Open the DMG and drag Peek to your Applications folder.
+[**Download Peek v1.0**](https://github.com/madebysan/peek/releases/tag/v1.0) — open the DMG and drag Peek to your Applications folder.
 
 On first launch, macOS will ask for **Accessibility** permission (needed for global mouse tracking). Grant it in **System Settings > Privacy & Security > Accessibility**.
 
