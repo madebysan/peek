@@ -22,14 +22,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Settings window (single instance, reused)
     private var settingsWindow: SettingsWindow?
 
-    // Global hotkey reference (⌥⌘P)
+    // Global hotkey reference
     private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyHandlerInstalled = false
 
     // User preferences
     private let defaults = UserDefaults.standard
     private let circleRadiusKey = "circleRadius"
     private let overlayStyleKey = "overlayStyle"
     private let edgeTransitionKey = "edgeTransition"
+    private let shortcutKeyCodeKey = "shortcutKeyCode"
+    private let shortcutModifiersKey = "shortcutModifiers"
 
     // MARK: - Public properties for Settings UI
 
@@ -75,6 +78,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Current keyboard shortcut. Persisted in UserDefaults.
+    var currentShortcut: KeyboardShortcut {
+        get {
+            // If no value stored, return the default (⌥⌘P)
+            guard defaults.object(forKey: shortcutKeyCodeKey) != nil else {
+                return .defaultShortcut
+            }
+            let code = UInt32(defaults.integer(forKey: shortcutKeyCodeKey))
+            let mods = UInt32(defaults.integer(forKey: shortcutModifiersKey))
+            return KeyboardShortcut(keyCode: code, carbonModifiers: mods)
+        }
+        set {
+            let previous = currentShortcut
+            defaults.set(Int(newValue.keyCode), forKey: shortcutKeyCodeKey)
+            defaults.set(Int(newValue.carbonModifiers), forKey: shortcutModifiersKey)
+
+            // Re-register the hotkey with the new shortcut
+            if !reregisterHotKey() {
+                // Registration failed (shortcut conflict) — revert
+                defaults.set(Int(previous.keyCode), forKey: shortcutKeyCodeKey)
+                defaults.set(Int(previous.carbonModifiers), forKey: shortcutModifiersKey)
+
+                let alert = NSAlert()
+                alert.messageText = "Shortcut Unavailable"
+                alert.informativeText = "The shortcut \(newValue.displayString) could not be registered. It may conflict with another application. The previous shortcut \(previous.displayString) has been restored."
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+
+                // Re-register the previous working shortcut
+                _ = reregisterHotKey()
+            }
+
+            updateToggleMenuItem()
+        }
+    }
+
     var isOverlayActive: Bool {
         return isActive
     }
@@ -116,9 +156,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() {
         statusMenu.removeAllItems()
 
-        let toggleItem = NSMenuItem(title: "Toggle Peek", action: #selector(toggleFromMenu), keyEquivalent: "p")
+        let sc = currentShortcut
+        let toggleItem = NSMenuItem(title: "Toggle Peek", action: #selector(toggleFromMenu), keyEquivalent: sc.keyEquivalentCharacter)
         toggleItem.target = self
-        toggleItem.keyEquivalentModifierMask = [.option, .command]
+        toggleItem.keyEquivalentModifierMask = sc.appKitModifierMask
         statusMenu.addItem(toggleItem)
 
         statusMenu.addItem(.separator())
@@ -302,30 +343,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Global hotkey (⌥⌘P)
+    // MARK: - Menu item sync
 
-    private func registerHotKey() {
-        // Unique ID for this hotkey
-        let hotKeyID = EventHotKeyID(signature: OSType(0x5065656B), // "Peek" in ASCII
-                                      id: 1)
+    /// Update the "Toggle Peek" menu item to reflect the current shortcut.
+    private func updateToggleMenuItem() {
+        guard let toggleItem = statusMenu.items.first(where: { $0.action == #selector(toggleFromMenu) }) else { return }
+        let sc = currentShortcut
+        toggleItem.keyEquivalent = sc.keyEquivalentCharacter
+        toggleItem.keyEquivalentModifierMask = sc.appKitModifierMask
+    }
 
-        // Carbon modifier flags: optionKey = 0x0800, cmdKey = 0x0100
-        // Key code 0x23 = "P"
-        let status = RegisterEventHotKey(
-            UInt32(kVK_ANSI_P),
-            UInt32(optionKey | cmdKey),
-            hotKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRef
-        )
+    // MARK: - Global hotkey
 
-        if status != noErr {
-            print("Peek: Failed to register hotkey ⌥⌘P (error \(status))")
-            return
-        }
+    /// Install the Carbon event handler (once at launch).
+    private func installHotKeyHandler() {
+        guard !hotKeyHandlerInstalled else { return }
+        hotKeyHandlerInstalled = true
 
-        // Install a Carbon event handler that fires when the hotkey is pressed
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                       eventKind: UInt32(kEventHotKeyPressed))
 
@@ -339,11 +373,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    /// Register the hotkey using the current shortcut. Returns true on success.
+    @discardableResult
+    private func registerHotKey() -> Bool {
+        // Install the event handler if it hasn't been installed yet
+        installHotKeyHandler()
+
+        let sc = currentShortcut
+        let hotKeyID = EventHotKeyID(signature: OSType(0x5065656B), // "Peek" in ASCII
+                                      id: 1)
+
+        let status = RegisterEventHotKey(
+            sc.keyCode,
+            sc.carbonModifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+
+        if status != noErr {
+            print("Peek: Failed to register hotkey \(sc.displayString) (error \(status))")
+            return false
+        }
+        return true
+    }
+
     private func unregisterHotKey() {
         if let ref = hotKeyRef {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
         }
+    }
+
+    /// Unregister the old hotkey and register the new one. Returns true on success.
+    @discardableResult
+    private func reregisterHotKey() -> Bool {
+        unregisterHotKey()
+        return registerHotKey()
     }
 }
 

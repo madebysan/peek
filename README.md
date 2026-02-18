@@ -8,7 +8,7 @@
 Blurs your entire screen with a clear circle that follows your mouse cursor.<br>
 Keep your content private from wandering eyes while you work.</p>
 
-<p align="center"><strong>Version 1.0</strong> · macOS 13 (Ventura) or later · Apple Silicon & Intel</p>
+<p align="center"><strong>Version 1.1</strong> · macOS 13 (Ventura) or later · Apple Silicon & Intel</p>
 
 <p align="center">
   <img src="assets/peek-preview.gif" width="600" alt="Peek demo">
@@ -23,7 +23,8 @@ Keep your content private from wandering eyes while you work.</p>
 - **Click-through** — all mouse clicks pass through to apps underneath
 - **Multi-monitor support** — covers all connected displays
 - **Menu bar app** — no Dock icon, stays out of your way
-- **Remembers your preferences** — circle size and overlay style persist between sessions
+- **Configurable keyboard shortcut** — set your own global hotkey in Settings (default: ⌥⌘P)
+- **Remembers your preferences** — circle size, overlay style, and keyboard shortcut persist between sessions
 
 ## Usage
 
@@ -36,12 +37,15 @@ Keep your content private from wandering eyes while you work.</p>
 
 | Shortcut | Action |
 |----------|--------|
+| `⌥⌘P` (default) | Toggle privacy overlay |
 | `Cmd + ,` | Open Settings |
 | `Cmd + Q` | Quit Peek |
 
+The toggle shortcut can be changed in **Settings** — click the shortcut field and press your preferred key combination.
+
 ## Installation
 
-[**Download Peek v1.0**](https://github.com/madebysan/peek/releases/tag/v1.0) — open the DMG and drag Peek to your Applications folder.
+[**Download Peek v1.1**](https://github.com/madebysan/peek/releases/tag/v1.1) — open the DMG and drag Peek to your Applications folder.
 
 On first launch, macOS will ask for **Accessibility** permission (needed for global mouse tracking). Grant it in **System Settings > Privacy & Security > Accessibility**.
 
