@@ -9,6 +9,7 @@ class SettingsWindow: NSWindow {
     private var sizeValueLabel: NSTextField!
     private var styleSegment: NSSegmentedControl!
     private var edgeSegment: NSSegmentedControl!
+    private var shortcutRecorder: ShortcutRecorderView!
     private var loginCheckbox: NSButton!
 
     init(appDelegate: AppDelegate) {
@@ -102,12 +103,19 @@ class SettingsWindow: NSWindow {
         shortcutLabel.frame = NSRect(x: padding, y: y, width: 180, height: 18)
         contentView.addSubview(shortcutLabel)
 
-        let shortcutValue = NSTextField(labelWithString: "\u{2325}\u{2318}P")
-        shortcutValue.font = .systemFont(ofSize: 13)
-        shortcutValue.textColor = .secondaryLabelColor
-        shortcutValue.alignment = .right
-        shortcutValue.frame = NSRect(x: 200, y: y, width: 100, height: 18)
-        contentView.addSubview(shortcutValue)
+        let initialShortcut = appDelegate?.currentShortcut ?? .defaultShortcut
+        shortcutRecorder = ShortcutRecorderView(
+            frame: NSRect(x: 200, y: y - 4, width: 100, height: 26),
+            shortcut: initialShortcut
+        )
+        shortcutRecorder.onChange = { [weak self] newShortcut in
+            self?.appDelegate?.currentShortcut = newShortcut
+            // If the shortcut was reverted (conflict), sync the recorder back
+            if let current = self?.appDelegate?.currentShortcut, current != newShortcut {
+                self?.shortcutRecorder.shortcut = current
+            }
+        }
+        contentView.addSubview(shortcutRecorder)
 
         // --- Launch at Login ---
         y -= 30
@@ -124,6 +132,7 @@ class SettingsWindow: NSWindow {
         sizeSlider.doubleValue = Double(app.circleRadius)
         styleSegment.selectedSegment = app.overlayStyle.rawValue
         edgeSegment.selectedSegment = app.edgeTransition.rawValue
+        shortcutRecorder.shortcut = app.currentShortcut
         updateSizeLabel()
 
         // Sync launch at login checkbox from system state
