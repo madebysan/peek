@@ -9,6 +9,7 @@ Blurs your entire screen with a clear circle that follows your mouse cursor.<br>
 Keep your content private from wandering eyes while you work.</p>
 
 <p align="center"><strong>Version 1.1</strong> · macOS 13 (Ventura) or later · Apple Silicon & Intel</p>
+<p align="center"><a href="https://github.com/madebysan/peek/releases/latest"><strong>Download Peek</strong></a></p>
 
 <p align="center">
   <img src="assets/peek-preview.gif" width="600" alt="Peek demo">
