@@ -65,6 +65,10 @@ This compiles a release binary, creates `Peek.app`, and packages it into `Peek.d
 
 Swift + AppKit — zero external dependencies
 
+## Feedback
+
+Found a bug or have a feature idea? [Open an issue](https://github.com/madebysan/peek/issues).
+
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
