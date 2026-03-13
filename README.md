@@ -71,4 +71,8 @@ Found a bug or have a feature idea? [Open an issue](https://github.com/madebysan
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+[MIT](LICENSE)
+
+---
+
+Made by [santiagoalonso.com](https://santiagoalonso.com)
