@@ -17,7 +17,7 @@ Keep your content private from wandering eyes while you work.</p>
 
 ## Features
 
-- **Privacy overlay** – blurs or blacks out your screen, with a clear "peek" circle following your mouse
+- **Privacy overlay** – blurs or blacks out your screen with a clear circle that follows your cursor
 - **Three overlay styles** – Light Blur, Dark Blur, or Blackout
 - **Adjustable circle size** – from 100px to 1200px diameter
 - **Smooth tracking** – GPU-accelerated mask follows your cursor with zero lag
