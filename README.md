@@ -1,21 +1,22 @@
 
-<p align="center">
-  <img src="assets/app-icon.png" width="128" height="128" alt="Peek app icon">
-</p>
+<p><img src="assets/app-icon.png" width="128" height="128" alt="Peek app icon"></p>
 
-<h1 align="center">Peek</h1>
+<h1>Peek</h1>
 
-<p align="center">A digital privacy screen for macOS that blurs everything except a clear circle around your cursor.<br>
+<p>A digital privacy screen for macOS that blurs everything except a clear circle around your cursor.<br>
 For working in public without turning your screen into a billboard.</p>
 
-<p align="center"><strong>Version 1.1</strong> · macOS 13 (Ventura) or later · Apple Silicon & Intel</p>
-<p align="center"><a href="https://github.com/madebysan/peek/releases/latest"><strong>Download Peek</strong></a></p>
+<p><strong>Version 1.1</strong> · macOS 13 (Ventura) or later · Apple Silicon & Intel</p>
 
-<p align="center">
-  <img src="assets/peek-preview.gif" width="600" alt="Peek demo">
+<p>
+  <img src="https://img.shields.io/badge/Swift-f05138" alt="Swift">
+  <img src="https://img.shields.io/badge/AppKit-0066cc" alt="AppKit">
+  <img src="https://img.shields.io/badge/macOS-000000" alt="macOS">
 </p>
 
----
+<p><a href="https://github.com/madebysan/peek/releases/latest">Download Peek</a></p>
+
+![Peek demo](assets/peek-preview.gif)
 
 Peek is a menu bar app that blurs your whole screen except for a clear circle around your cursor. For coffee shops, trains, anywhere with someone next to you.
 
