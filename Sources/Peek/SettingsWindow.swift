@@ -123,7 +123,18 @@ class SettingsWindow: NSWindow {
         loginCheckbox.frame = NSRect(x: padding, y: y, width: 280, height: 18)
         contentView.addSubview(loginCheckbox)
 
+        let separator = NSBox(frame: NSRect(x: padding, y: 58, width: 280, height: 1))
+        separator.boxType = .separator
+        contentView.addSubview(separator)
+
+        let quitButton = NSButton(title: "Quit Peek", target: appDelegate, action: #selector(AppDelegate.quitApp))
+        quitButton.bezelStyle = .rounded
+        quitButton.frame = NSRect(x: 200, y: 18, width: 100, height: 28)
+        quitButton.toolTip = "Quit Peek completely"
+        contentView.addSubview(quitButton)
+
         self.contentView = contentView
+        self.initialFirstResponder = styleSegment
     }
 
     /// Read current values from AppDelegate and update the controls
