@@ -6,7 +6,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Menu bar item
     private var statusItem: NSStatusItem!
 
-    // Right-click menu
+    // Menu shown from the status item
     private let statusMenu = NSMenu()
 
     // One overlay window per screen
@@ -15,9 +15,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Whether the privacy screen is currently active
     private var isActive = false
 
-    // Mouse monitor references (global + local for full coverage)
-    private var globalMouseMonitor: Any?
-    private var localMouseMonitor: Any?
+    // Polls the public cursor-location API only while the overlay is active.
+    // This avoids Accessibility or Input Monitoring permissions.
+    private var mouseTrackingTimer: Timer?
+    private var lastMouseLocation: NSPoint?
 
     // Settings window (single instance, reused)
     private var settingsWindow: SettingsWindow?
@@ -127,13 +128,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "eye.circle", accessibilityDescription: "Peek")
-            button.action = #selector(statusItemClicked(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.target = self
+            button.toolTip = "Peek — click for controls"
         }
 
-        // Build the right-click menu
+        // Use a standard menu so Quit is visible from a normal click.
         buildMenu()
+        statusItem.menu = statusMenu
 
         // Listen for screen configuration changes (monitors connected/disconnected)
         NotificationCenter.default.addObserver(
@@ -145,6 +145,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Register global hotkey ⌥⌘P
         registerHotKey()
+
+        #if DEBUG
+        let arguments = Set(ProcessInfo.processInfo.arguments)
+        if arguments.contains("--show-settings") {
+            DispatchQueue.main.async { [weak self] in self?.openSettings() }
+        } else if arguments.contains("--show-about") {
+            DispatchQueue.main.async { [weak self] in self?.openAbout() }
+        } else if arguments.contains("--show-menu") {
+            DispatchQueue.main.async { [weak self] in
+                self?.statusItem.button?.performClick(nil)
+            }
+        }
+        if arguments.contains("--activate-overlay") {
+            DispatchQueue.main.async { [weak self] in self?.activate() }
+        }
+        #endif
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -157,7 +173,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu.removeAllItems()
 
         let sc = currentShortcut
-        let toggleItem = NSMenuItem(title: "Toggle Peek", action: #selector(toggleFromMenu), keyEquivalent: sc.keyEquivalentCharacter)
+        let toggleTitle = isActive ? "Turn Peek Off" : "Turn Peek On"
+        let toggleItem = NSMenuItem(title: toggleTitle, action: #selector(toggleFromMenu), keyEquivalent: sc.keyEquivalentCharacter)
         toggleItem.target = self
         toggleItem.keyEquivalentModifierMask = sc.appKitModifierMask
         statusMenu.addItem(toggleItem)
@@ -172,30 +189,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         aboutItem.target = self
         statusMenu.addItem(aboutItem)
 
+        let privacyItem = NSMenuItem(title: "Privacy Policy", action: #selector(openPrivacyPolicy), keyEquivalent: "")
+        privacyItem.target = self
+        statusMenu.addItem(privacyItem)
+
         statusMenu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit Peek", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         statusMenu.addItem(quitItem)
-    }
-
-    // MARK: - Status item click handling
-
-    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        guard let event = NSApp.currentEvent else { return }
-
-        if event.type == .rightMouseUp {
-            // Right-click: show the menu
-            statusItem.menu = statusMenu
-            statusItem.button?.performClick(nil)
-            // Remove the menu after it closes so left-click still toggles
-            DispatchQueue.main.async { [weak self] in
-                self?.statusItem.menu = nil
-            }
-        } else {
-            // Left-click: toggle the overlay
-            toggle()
-        }
     }
 
     // MARK: - Menu actions
@@ -213,24 +215,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openAbout() {
-        let credits = NSAttributedString(
-            string: "A digital privacy screen for macOS.\n\nBlurs your screen with a clear circle that follows your mouse. Keep your content private from wandering eyes while you work.",
+        let credits = NSMutableAttributedString(
+            string: "A digital privacy screen for macOS.\n\nBlurs your screen with a clear circle that follows your mouse.\n\nMade by santiagoalonso.com",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 11),
                 .foregroundColor: NSColor.labelColor
             ]
         )
+        let siteText = "santiagoalonso.com"
+        let siteRange = (credits.string as NSString).range(of: siteText)
+        if let siteURL = URL(string: "https://santiagoalonso.com") {
+            credits.addAttribute(.link, value: siteURL, range: siteRange)
+        }
+
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "4"
 
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "Peek",
-            .applicationVersion: "1.0",
-            .version: "1",
+            .applicationVersion: version,
+            .version: build,
             .credits: credits
         ])
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func quitApp() {
+    @objc private func openPrivacyPolicy() {
+        guard let url = URL(string: "https://github.com/madebysan/peek/blob/main/PRIVACY.md") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc func quitApp() {
         NSApplication.shared.terminate(nil)
     }
 
@@ -264,6 +279,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             systemSymbolName: symbolName,
             accessibilityDescription: "Peek"
         )
+        updateToggleMenuItem()
     }
 
     // MARK: - Overlay windows (one per screen)
@@ -292,42 +308,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func screenParametersChanged() {
         if isActive {
             createOverlayWindows()
+            updateMousePosition(force: true)
         }
     }
 
     // MARK: - Mouse tracking
 
     private func startMouseTracking() {
-        let events: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
+        stopMouseTracking()
+        updateMousePosition(force: true)
 
-        // Global monitor: tracks mouse in all OTHER apps
-        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] _ in
-            self?.handleMouseMoved()
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            self?.updateMousePosition()
         }
-
-        // Local monitor: tracks mouse when Peek's own windows are focused (Settings, About)
-        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
-            self?.handleMouseMoved()
-            return event
-        }
-
-        // Update immediately so the circle appears at the current position
-        handleMouseMoved()
+        RunLoop.main.add(timer, forMode: .common)
+        mouseTrackingTimer = timer
     }
 
     private func stopMouseTracking() {
-        if let monitor = globalMouseMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalMouseMonitor = nil
-        }
-        if let monitor = localMouseMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMouseMonitor = nil
-        }
+        mouseTrackingTimer?.invalidate()
+        mouseTrackingTimer = nil
+        lastMouseLocation = nil
     }
 
-    private func handleMouseMoved() {
+    private func updateMousePosition(force: Bool = false) {
         let mouseLocation = NSEvent.mouseLocation
+        guard force || mouseLocation != lastMouseLocation else { return }
+        lastMouseLocation = mouseLocation
 
         for window in overlayWindows {
             guard let screen = window.screen ?? NSScreen.main else { continue }
@@ -345,10 +352,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Menu item sync
 
-    /// Update the "Toggle Peek" menu item to reflect the current shortcut.
+    /// Keep the menu item label and shortcut in sync with the current state.
     private func updateToggleMenuItem() {
         guard let toggleItem = statusMenu.items.first(where: { $0.action == #selector(toggleFromMenu) }) else { return }
         let sc = currentShortcut
+        toggleItem.title = isActive ? "Turn Peek Off" : "Turn Peek On"
         toggleItem.keyEquivalent = sc.keyEquivalentCharacter
         toggleItem.keyEquivalentModifierMask = sc.appKitModifierMask
     }
