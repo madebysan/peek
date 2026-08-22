@@ -24,6 +24,7 @@ mkdir -p "$RESOURCES"
 cp "$BUILD_DIR/$APP_NAME" "$MACOS/$APP_NAME"
 cp "Sources/Peek/Info.plist" "$CONTENTS/Info.plist"
 cp "AppIcon.icns" "$RESOURCES/AppIcon.icns"
+cp "Sources/Peek/PrivacyInfo.xcprivacy" "$RESOURCES/PrivacyInfo.xcprivacy"
 
 # --- Code sign ---
 echo "Signing app..."
