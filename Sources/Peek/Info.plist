@@ -4,15 +4,31 @@
 <dict>
     <key>CFBundleName</key>
     <string>Peek</string>
+    <key>CFBundleDisplayName</key>
+    <string>Peek</string>
+    <key>CFBundleExecutable</key>
+    <string>Peek</string>
     <key>CFBundleIdentifier</key>
     <string>com.madebysan.peek</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>4</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.2</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
     <key>LSUIElement</key>
     <true/>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Santiago Alonso. All rights reserved.</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
 </dict>
 </plist>

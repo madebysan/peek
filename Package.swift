@@ -8,7 +8,7 @@ let package = Package(
         .executableTarget(
             name: "Peek",
             path: "Sources/Peek",
-            exclude: ["Info.plist"]
+            exclude: ["Info.plist", "Peek.entitlements", "PrivacyInfo.xcprivacy"]
         )
     ]
 )

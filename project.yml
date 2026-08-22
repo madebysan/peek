@@ -1,0 +1,56 @@
+name: Peek
+
+options:
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "26.0"
+
+configs:
+  Debug: debug
+  Release: release
+
+targets:
+  Peek:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Peek
+        excludes:
+          - Info.plist
+          - Peek.entitlements
+          - PrivacyInfo.xcprivacy
+      - path: AppIcon.icns
+        buildPhase: resources
+      - path: Sources/Peek/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.madebysan.peek
+        PRODUCT_NAME: Peek
+        INFOPLIST_FILE: Sources/Peek/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Sources/Peek/Peek.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        MARKETING_VERSION: "1.2"
+        CURRENT_PROJECT_VERSION: "4"
+        SWIFT_VERSION: "5.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        ARCHS: "$(ARCHS_STANDARD)"
+        ONLY_ACTIVE_ARCH: NO
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "-"
+        Release:
+          CODE_SIGN_STYLE: Automatic
+          DEVELOPMENT_TEAM: QAMM2A6WRQ
+
+schemes:
+  Peek:
+    build:
+      targets:
+        Peek: all
+    run:
+      config: Debug
+    archive:
+      config: Release
