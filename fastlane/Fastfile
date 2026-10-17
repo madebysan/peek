@@ -96,4 +96,25 @@ platform :mac do
       UI.success("Attached build #{version_string} (#{build_number}) to version #{version_string}")
     end
   end
+  desc "Submit a prepared version for App Review with manual release. Only run after san confirms."
+  desc "Usage: fastlane mac submit_review version:1.3 build:5"
+  lane :submit_review do |options|
+    upload_to_app_store(
+      api_key: api_key,
+      platform: "osx",
+      app_version: options.fetch(:version),
+      build_number: options.fetch(:build).to_s,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      submit_for_review: true,
+      automatic_release: false,
+      force: true,
+      run_precheck_before_submit: false,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: false
+      }
+    )
+  end
 end
