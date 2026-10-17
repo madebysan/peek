@@ -9,3 +9,5 @@ DerivedData/
 dist/
 *.dmg
 *.app
+fastlane/report.xml
+fastlane/README.md
