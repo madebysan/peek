@@ -21,7 +21,7 @@ To change the toggle shortcut, open Settings, click the shortcut field and press
 
 ## Overlay
 
-Three styles: Light Blur, Dark Blur and Blackout. The clear circle is 100 to 1200 px wide and follows the cursor. Clicks pass through the overlay to the app underneath.
+Three styles: Light Blur, Dark Blur and Blackout. The Intensity slider in Settings sets how strong the style is, from 5% (barely there) to 100% (full blur, or solid black for Blackout). The clear circle is 100 to 1200 px wide and follows the cursor. Settings shows a live preview of the overlay; hover it to move the circle. Edge Softness sets how gradually the circle fades into the overlay, from a sharp edge to a 200 px fade. **Save as Default** keeps the current style, intensity, softness and size; **Restore Default** brings them back after you experiment. Clicks pass through the overlay to the app underneath.
 
 ## Built with
 

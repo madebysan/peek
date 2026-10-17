@@ -1,6 +1,25 @@
 import Cocoa
 import Carbon
 
+/// A snapshot of the overlay settings that "Save as Default" stores and "Restore Default" brings back.
+struct OverlayLook: Codable, Equatable {
+    var style: OverlayStyle
+    var intensity: CGFloat
+    var edgeSoftness: CGFloat
+    var circleRadius: CGFloat
+
+    /// What Peek uses before anything is changed
+    static let builtIn = OverlayLook(style: .darkBlur, intensity: 1, edgeSoftness: 120, circleRadius: 150)
+
+    /// Slider values are continuous, so compare to the precision the labels show
+    func matches(_ other: OverlayLook) -> Bool {
+        style == other.style
+            && Int((intensity * 100).rounded()) == Int((other.intensity * 100).rounded())
+            && Int(edgeSoftness.rounded()) == Int(other.edgeSoftness.rounded())
+            && Int((circleRadius * 2).rounded(.down)) == Int((other.circleRadius * 2).rounded(.down))
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Menu bar item
@@ -31,7 +50,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let defaults = UserDefaults.standard
     private let circleRadiusKey = "circleRadius"
     private let overlayStyleKey = "overlayStyle"
-    private let edgeTransitionKey = "edgeTransition"
+    private let edgeSoftnessKey = "edgeSoftness"
+    private let overlayIntensityKey = "overlayIntensity"
+    private let savedDefaultKey = "savedDefaultLook"
     private let shortcutKeyCodeKey = "shortcutKeyCode"
     private let shortcutModifiersKey = "shortcutModifiers"
 
@@ -65,18 +86,65 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Current edge transition. Persisted in UserDefaults.
-    var edgeTransition: EdgeTransition {
+    /// Fade width in px between the clear circle and the overlay, 0...200. Persisted in UserDefaults.
+    var edgeSoftness: CGFloat {
         get {
-            let stored = defaults.integer(forKey: edgeTransitionKey)
-            return EdgeTransition(rawValue: stored) ?? .soft
+            guard defaults.object(forKey: edgeSoftnessKey) != nil else { return 120 }
+            return min(max(defaults.double(forKey: edgeSoftnessKey), 0), 200)
         }
         set {
-            defaults.set(newValue.rawValue, forKey: edgeTransitionKey)
+            defaults.set(newValue, forKey: edgeSoftnessKey)
             for window in overlayWindows {
-                (window.contentView as? OverlayView)?.edgeTransition = newValue
+                (window.contentView as? OverlayView)?.edgeSoftness = newValue
             }
         }
+    }
+
+    /// Overlay strength, 0.05...1. Persisted in UserDefaults; defaults to full strength.
+    var overlayIntensity: CGFloat {
+        get {
+            guard defaults.object(forKey: overlayIntensityKey) != nil else { return 1 }
+            return min(max(defaults.double(forKey: overlayIntensityKey), 0.05), 1)
+        }
+        set {
+            defaults.set(newValue, forKey: overlayIntensityKey)
+            for window in overlayWindows {
+                (window.contentView as? OverlayView)?.intensity = newValue
+            }
+        }
+    }
+
+    /// The four overlay settings taken together
+    var currentLook: OverlayLook {
+        get {
+            OverlayLook(style: overlayStyle, intensity: overlayIntensity,
+                        edgeSoftness: edgeSoftness, circleRadius: circleRadius)
+        }
+        set {
+            overlayStyle = newValue.style
+            overlayIntensity = newValue.intensity
+            edgeSoftness = newValue.edgeSoftness
+            circleRadius = newValue.circleRadius
+        }
+    }
+
+    /// The look saved with "Save as Default", or the built-in look if none was saved.
+    var defaultLook: OverlayLook {
+        guard let data = defaults.data(forKey: savedDefaultKey),
+              let look = try? JSONDecoder().decode(OverlayLook.self, from: data) else {
+            return .builtIn
+        }
+        return look
+    }
+
+    func saveCurrentLookAsDefault() {
+        if let data = try? JSONEncoder().encode(currentLook) {
+            defaults.set(data, forKey: savedDefaultKey)
+        }
+    }
+
+    func restoreDefaultLook() {
+        currentLook = defaultLook
     }
 
     /// Current keyboard shortcut. Persisted in UserDefaults.
@@ -289,10 +357,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let style = overlayStyle
         let radius = circleRadius
-        let edge = edgeTransition
+        let softness = edgeSoftness
+        let intensity = overlayIntensity
 
         for screen in NSScreen.screens {
-            let window = OverlayWindow(screen: screen, circleRadius: radius, style: style, edgeTransition: edge)
+            let window = OverlayWindow(screen: screen, circleRadius: radius, style: style, edgeSoftness: softness, intensity: intensity)
             window.orderFrontRegardless()
             overlayWindows.append(window)
         }

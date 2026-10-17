@@ -2,33 +2,24 @@ import Cocoa
 import QuartzCore
 
 /// Overlay styles for the privacy screen (controls the fill appearance)
-enum OverlayStyle: Int {
+enum OverlayStyle: Int, Codable {
     case lightBlur = 0   // Frosted glass — shapes/colors faintly visible
     case darkBlur = 1    // Dark frosted glass + dimming (default)
     case blackout = 2    // Solid black — nothing visible outside the circle
 }
 
-/// Edge transition styles (controls how the clear circle fades into the overlay)
-enum EdgeTransition: Int {
-    case soft = 0       // Smooth 60px feather (original)
-    case hard = 1       // Sharp cutoff, no feathering
-    case wide = 2       // Very gradual 150px fade
-    case spotlight = 3  // Tight 30px aggressive falloff, like a flashlight
-    case stepped = 4    // Visible discrete bands with clear jumps
-}
-
 /// The main overlay view: a fullscreen blur/tint with a circular reveal hole following the mouse.
 ///
-/// Performance approach:
-/// - 5 concentric CAShapeLayer rings as the mask (no CIFilter, no CGImage rendering)
-/// - Each ring has even-odd fill (rect + circle cutout) with graduated opacity
-/// - They composite via sourceOver to create a smooth alpha gradient from 0→1
-/// - Per frame: just 5 path updates (trivial CPU). All rendering is GPU-accelerated.
+/// The mask has two layers:
+/// - A black CAShapeLayer covering the screen, with an even-odd hole of the circle radius plus the fade
+/// - A radial CAGradientLayer filling that hole, clear in the middle and black at its rim,
+///   so the edge fades continuously with no visible bands
+/// Per frame: one path update and one frame move (trivial CPU). All rendering is GPU-accelerated.
 class OverlayView: NSView {
 
     /// Radius of the clear circle around the mouse
     var circleRadius: CGFloat {
-        didSet { updateMaskPaths() }
+        didSet { updateFadeGradient() }
     }
 
     /// Visual style of the overlay (fill appearance)
@@ -36,73 +27,32 @@ class OverlayView: NSView {
         didSet { applyStyle() }
     }
 
-    /// Edge transition style (how the circle fades into the overlay)
-    var edgeTransition: EdgeTransition {
-        didSet { rebuildRingLayers() }
+    /// Width in px of the fade from the clear circle into the overlay. 0 is a hard edge.
+    var edgeSoftness: CGFloat {
+        didSet { updateFadeGradient() }
     }
+
+    /// Strength of the overlay, 0...1. Fades the whole blur/tint so it can range
+    /// from barely there to the full style (fully black for Blackout).
+    var intensity: CGFloat {
+        didSet { alphaValue = intensity }
+    }
+
+    /// .behindWindow for the real overlay; .withinWindow for the Settings preview
+    private let blendingMode: NSVisualEffectView.BlendingMode
 
     // Subviews
     private let blurView = NSVisualEffectView()
     private let tintView = NSView()
 
-    // Mask: transparent base with ring sublayers that build up alpha
+    // Mask layers
     private let maskBase = CALayer()
-    private var ringLayers: [CAShapeLayer] = []
+    private let coverLayer = CAShapeLayer()
+    private let fadeLayer = CAGradientLayer()
 
-    // Ring configuration: radiusOffset from circleRadius, and opacity.
-    // Ordered bottom to top. Bottom layer ensures full opacity outside the soft zone.
-    // The graduated opacities composite (sourceOver) into a smooth 0→1 curve.
-    private struct Ring {
-        let radiusOffset: CGFloat
-        let opacity: Float
-    }
-
-    /// Returns the ring configuration for a given edge transition
-    private static func rings(for transition: EdgeTransition) -> [Ring] {
-        switch transition {
-        case .soft:
-            // Original: smooth 60px feather
-            return [
-                Ring(radiusOffset: 60, opacity: 1.0),
-                Ring(radiusOffset: 45, opacity: 0.50),
-                Ring(radiusOffset: 30, opacity: 0.30),
-                Ring(radiusOffset: 15, opacity: 0.20),
-                Ring(radiusOffset: 0,  opacity: 0.10),
-            ]
-        case .hard:
-            // Sharp cutoff — single ring, no feathering
-            return [
-                Ring(radiusOffset: 0, opacity: 1.0),
-            ]
-        case .wide:
-            // Very gradual 150px fade
-            return [
-                Ring(radiusOffset: 150, opacity: 1.0),
-                Ring(radiusOffset: 125, opacity: 0.35),
-                Ring(radiusOffset: 100, opacity: 0.20),
-                Ring(radiusOffset: 75,  opacity: 0.12),
-                Ring(radiusOffset: 50,  opacity: 0.08),
-                Ring(radiusOffset: 25,  opacity: 0.05),
-                Ring(radiusOffset: 0,   opacity: 0.03),
-            ]
-        case .spotlight:
-            // Tight 30px aggressive falloff — like a flashlight cone
-            return [
-                Ring(radiusOffset: 30, opacity: 1.0),
-                Ring(radiusOffset: 24, opacity: 0.60),
-                Ring(radiusOffset: 16, opacity: 0.40),
-                Ring(radiusOffset: 8,  opacity: 0.25),
-                Ring(radiusOffset: 0,  opacity: 0.15),
-            ]
-        case .stepped:
-            // Visible discrete bands with clear opacity jumps (25px each)
-            return [
-                Ring(radiusOffset: 75, opacity: 1.0),
-                Ring(radiusOffset: 50, opacity: 0.35),
-                Ring(radiusOffset: 25, opacity: 0.25),
-                Ring(radiusOffset: 0,  opacity: 0.15),
-            ]
-        }
+    /// Outer radius of the fade: where the overlay reaches full strength
+    private var outerRadius: CGFloat {
+        circleRadius + max(edgeSoftness, 0)
     }
 
     // Mouse state
@@ -110,10 +60,13 @@ class OverlayView: NSView {
     private var lastMouseY: CGFloat = 0
     private var mouseVisible = false
 
-    init(frame: NSRect, circleRadius: CGFloat, style: OverlayStyle, edgeTransition: EdgeTransition) {
+    init(frame: NSRect, circleRadius: CGFloat, style: OverlayStyle, edgeSoftness: CGFloat, intensity: CGFloat,
+         blendingMode: NSVisualEffectView.BlendingMode = .behindWindow) {
+        self.blendingMode = blendingMode
         self.circleRadius = circleRadius
         self.style = style
-        self.edgeTransition = edgeTransition
+        self.edgeSoftness = edgeSoftness
+        self.intensity = intensity
         super.init(frame: frame)
         setup()
     }
@@ -121,7 +74,9 @@ class OverlayView: NSView {
     required init?(coder: NSCoder) {
         self.circleRadius = 150
         self.style = .darkBlur
-        self.edgeTransition = .soft
+        self.edgeSoftness = 120
+        self.intensity = 1
+        self.blendingMode = .behindWindow
         super.init(coder: coder)
         setup()
     }
@@ -132,7 +87,7 @@ class OverlayView: NSView {
         // Blur view fills the entire overlay
         blurView.frame = bounds
         blurView.autoresizingMask = [.width, .height]
-        blurView.blendingMode = .behindWindow
+        blurView.blendingMode = blendingMode
         blurView.state = .active
         addSubview(blurView)
 
@@ -142,9 +97,17 @@ class OverlayView: NSView {
         tintView.wantsLayer = true
         addSubview(tintView)
 
-        // Build ring layers for the current edge transition
-        rebuildRingLayers()
+        // Mask: solid outside the fade, radial gradient across it
+        coverLayer.fillRule = .evenOdd
+        coverLayer.fillColor = NSColor.black.cgColor
+        fadeLayer.type = .radial
+        fadeLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
+        fadeLayer.endPoint = CGPoint(x: 1, y: 1)
+        maskBase.addSublayer(coverLayer)
+        maskBase.addSublayer(fadeLayer)
+        updateFadeGradient()
         applyStyle()
+        alphaValue = intensity
     }
 
     private func applyStyle() {
@@ -171,35 +134,31 @@ class OverlayView: NSView {
         super.viewDidMoveToWindow()
         guard let layer = self.layer else { return }
         maskBase.frame = layer.bounds
-        for ringLayer in ringLayers {
-            ringLayer.frame = layer.bounds
-        }
+        coverLayer.frame = layer.bounds
         layer.mask = maskBase
         updateMaskPaths()
     }
 
-    /// Rebuilds the mask ring layers for the current edge transition.
-    /// Called when edgeTransition changes or during initial setup.
-    private func rebuildRingLayers() {
-        // Remove existing ring layers
-        for layer in ringLayers {
-            layer.removeFromSuperlayer()
+    /// Rebuilds the gradient stops for the current radius and softness.
+    /// Alpha follows a smoothstep curve from 0 at the circle edge to 1 at the outer radius.
+    private func updateFadeGradient() {
+        let outer = outerRadius
+        let inner = outer > 0 ? Double(circleRadius / outer) : 1
+        let stops = 12
+        var colors: [CGColor] = [CGColor(gray: 0, alpha: 0)]
+        var locations: [NSNumber] = [0]
+        for i in 0...stops {
+            let t = Double(i) / Double(stops)
+            colors.append(CGColor(gray: 0, alpha: t * t * (3 - 2 * t)))
+            locations.append(NSNumber(value: inner + (1 - inner) * t))
         }
-        ringLayers.removeAll()
 
-        // Create new ring layers for the current transition
-        let rings = OverlayView.rings(for: edgeTransition)
-        for ring in rings {
-            let shapeLayer = CAShapeLayer()
-            shapeLayer.fillRule = .evenOdd
-            shapeLayer.fillColor = NSColor.black.cgColor
-            shapeLayer.opacity = ring.opacity
-            if let layerBounds = self.layer?.bounds {
-                shapeLayer.frame = layerBounds
-            }
-            maskBase.addSublayer(shapeLayer)
-            ringLayers.append(shapeLayer)
-        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fadeLayer.colors = colors
+        fadeLayer.locations = locations
+        fadeLayer.isHidden = edgeSoftness < 1
+        CATransaction.commit()
 
         updateMaskPaths()
     }
@@ -212,33 +171,24 @@ class OverlayView: NSView {
         updateMaskPaths()
     }
 
-    /// Updates all ring paths — the only per-frame work.
+    /// Moves the hole and the gradient to the cursor — the only per-frame work.
     private func updateMaskPaths() {
-        let currentRings = OverlayView.rings(for: edgeTransition)
-        guard ringLayers.count == currentRings.count else { return }
+        let r = edgeSoftness < 1 ? circleRadius : outerRadius
+        let circle = CGRect(x: lastMouseX - r, y: lastMouseY - r, width: r * 2, height: r * 2)
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
-        for (i, ring) in currentRings.enumerated() {
-            let r = circleRadius + ring.radiusOffset
-            let path = CGMutablePath()
-
-            // Oversized rect so edges extend beyond screen
-            path.addRect(bounds.insetBy(dx: -200, dy: -200))
-
-            // Circle cutout (even-odd makes this a hole)
-            if mouseVisible {
-                path.addEllipse(in: CGRect(
-                    x: lastMouseX - r,
-                    y: lastMouseY - r,
-                    width: r * 2,
-                    height: r * 2
-                ))
-            }
-
-            ringLayers[i].path = path
+        // Oversized rect so edges extend beyond screen; even-odd makes the circle a hole
+        let path = CGMutablePath()
+        path.addRect(bounds.insetBy(dx: -200, dy: -200))
+        if mouseVisible {
+            path.addEllipse(in: circle)
         }
+        coverLayer.path = path
+
+        fadeLayer.frame = circle
+        fadeLayer.opacity = mouseVisible ? 1 : 0
 
         CATransaction.commit()
     }
@@ -247,9 +197,7 @@ class OverlayView: NSView {
         super.layout()
         if let layer = self.layer {
             maskBase.frame = layer.bounds
-            for ringLayer in ringLayers {
-                ringLayer.frame = layer.bounds
-            }
+            coverLayer.frame = layer.bounds
         }
         updateMaskPaths()
     }

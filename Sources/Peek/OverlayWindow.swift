@@ -4,7 +4,7 @@ import Cocoa
 /// It sits above everything and passes all mouse events through to apps underneath.
 class OverlayWindow: NSWindow {
 
-    init(screen: NSScreen, circleRadius: CGFloat, style: OverlayStyle, edgeTransition: EdgeTransition) {
+    init(screen: NSScreen, circleRadius: CGFloat, style: OverlayStyle, edgeSoftness: CGFloat, intensity: CGFloat) {
         super.init(
             contentRect: screen.frame,
             styleMask: .borderless,
@@ -32,7 +32,7 @@ class OverlayWindow: NSWindow {
         self.hidesOnDeactivate = false
 
         // Set up the overlay view with blur + mask
-        let overlayView = OverlayView(frame: screen.frame, circleRadius: circleRadius, style: style, edgeTransition: edgeTransition)
+        let overlayView = OverlayView(frame: screen.frame, circleRadius: circleRadius, style: style, edgeSoftness: edgeSoftness, intensity: intensity)
         self.contentView = overlayView
     }
 }

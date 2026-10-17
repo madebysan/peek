@@ -25,7 +25,7 @@ Peek is a menu bar app for working in coffee shops, trains or anywhere someone s
 
 ## How it works
 
-Turn Peek on from the menu bar icon or the shortcut. Choose Light Blur, Dark Blur or Blackout, and a circle size from 100 to 1200 px; the circle follows your cursor with no lag. Settings opens with `Cmd ,`. Every shortcut and menu item is in [docs/how-it-works.md](docs/how-it-works.md).
+Turn Peek on from the menu bar icon or the shortcut. Choose Light Blur, Dark Blur or Blackout, how strong it is, and a circle size from 100 to 1200 px; the circle follows your cursor with no lag. Settings opens with `Cmd ,`. Every shortcut and menu item is in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Privacy
 
