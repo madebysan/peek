@@ -1,0 +1,5 @@
+• Smoother edge: the clear circle now fades with a soft gradient.
+• New Intensity slider: make the blur or blackout barely there or fully dark.
+• Edge Softness slider replaces the edge presets, from sharp to very soft.
+• Redesigned Settings with a live preview.
+• Save as Default and Restore Default keep your favorite look.
