@@ -3,7 +3,6 @@
 set -e
 
 APP_NAME="Peek"
-BUILD_DIR=".build/apple/Products/Release"
 APP_BUNDLE="$APP_NAME.app"
 CONTENTS="$APP_BUNDLE/Contents"
 MACOS="$CONTENTS/MacOS"
@@ -14,6 +13,7 @@ DMG_STAGING="dmg-staging"
 # --- Build release binary ---
 echo "Building universal release binary..."
 swift build -c release --arch arm64 --arch x86_64
+BUILD_DIR="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 
 # --- Create .app bundle ---
 echo "Creating app bundle..."
