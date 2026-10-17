@@ -3,7 +3,7 @@
 set -e
 
 APP_NAME="Peek"
-BUILD_DIR=".build/release"
+BUILD_DIR=".build/apple/Products/Release"
 APP_BUNDLE="$APP_NAME.app"
 CONTENTS="$APP_BUNDLE/Contents"
 MACOS="$CONTENTS/MacOS"
@@ -12,8 +12,8 @@ DMG_NAME="$APP_NAME.dmg"
 DMG_STAGING="dmg-staging"
 
 # --- Build release binary ---
-echo "Building release binary..."
-swift build -c release
+echo "Building universal release binary..."
+swift build -c release --arch arm64 --arch x86_64
 
 # --- Create .app bundle ---
 echo "Creating app bundle..."
@@ -33,7 +33,7 @@ codesign --force --deep --options runtime --sign "Developer ID Application" "$AP
 # --- Notarize ---
 echo "Submitting for notarization..."
 ditto -c -k --keepParent "$APP_BUNDLE" "$APP_NAME.zip"
-xcrun notarytool submit "$APP_NAME.zip" --keychain-profile "notarytool-profile" --wait
+xcrun notarytool submit "$APP_NAME.zip" --keychain-profile "notarytool" --wait
 rm "$APP_NAME.zip"
 
 echo "Stapling notarization ticket..."
@@ -60,7 +60,7 @@ hdiutil create \
 
 # Sign and notarize the DMG too
 codesign --force --sign "Developer ID Application" "$DMG_NAME"
-xcrun notarytool submit "$DMG_NAME" --keychain-profile "notarytool-profile" --wait
+xcrun notarytool submit "$DMG_NAME" --keychain-profile "notarytool" --wait
 xcrun stapler staple "$DMG_NAME"
 
 # Clean up staging

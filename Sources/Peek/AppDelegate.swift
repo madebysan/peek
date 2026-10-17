@@ -296,8 +296,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             credits.addAttribute(.link, value: siteURL, range: siteRange)
         }
 
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "4"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.3"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "5"
 
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "Peek",

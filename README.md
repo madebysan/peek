@@ -5,7 +5,7 @@
 <p>A digital privacy screen for macOS.<br>
 It blurs everything except a clear circle around your cursor.</p>
 
-<p><strong>Version 1.2</strong> · macOS 13+ · Apple Silicon & Intel</p>
+<p><strong>Version 1.3</strong> · macOS 13+ · Apple Silicon & Intel</p>
 
 <p>
   <img src="https://img.shields.io/badge/Swift-f05138" alt="Swift">
