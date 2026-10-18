@@ -2,7 +2,7 @@
 
 <h1>Peek</h1>
 
-<p>A digital privacy screen for macOS.<br>
+<p>A digital privacy screen for Mac.<br>
 It blurs everything except a clear circle around your cursor.</p>
 
 <p><strong>Version 1.3</strong> · macOS 13+ · Apple Silicon & Intel</p>
